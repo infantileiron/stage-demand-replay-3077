@@ -1,0 +1,78 @@
+name: ${COMPOSE_PROJECT_NAME:-stage-demand}
+services:
+  frontend:
+    build: ./frontend
+    container_name: ${COMPOSE_PROJECT_NAME:-stage-demand}-frontend
+    ports: ["${FRONTEND_PORT:-18203}:80"]
+    depends_on:
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  backend:
+    build: ./backend
+    container_name: ${COMPOSE_PROJECT_NAME:-stage-demand}-backend
+    environment: &backend-env
+      DATABASE_URL: mysql://stage:${DB_PASSWORD:-stage-demo-password}@db:3306/stage
+      REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:-local-demo-change-me-32-characters-long}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      ARTIFACTS_DIR: /app/artifacts
+    ports: ["${BACKEND_PORT:-19203}:8000"]
+    volumes: ["artifacts:/app/artifacts"]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 25s
+  worker:
+    build: ./backend
+    container_name: ${COMPOSE_PROJECT_NAME:-stage-demand}-worker
+    command: ["python", "-m", "src.worker"]
+    environment: *backend-env
+    volumes: ["artifacts:/app/artifacts"]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "from pathlib import Path;import time;from src.utils.queue import ping;p=Path('/tmp/stage-worker-heartbeat');assert p.exists() and time.time()-p.stat().st_mtime<20 and ping()"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+  db:
+    image: mysql:8.0
+    container_name: ${COMPOSE_PROJECT_NAME:-stage-demand}-db
+    environment:
+      MYSQL_DATABASE: stage
+      MYSQL_USER: stage
+      MYSQL_PASSWORD: ${DB_PASSWORD:-stage-demo-password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-stage-root-demo-password}
+    ports: ["${DB_PORT:-17703}:3306"]
+    volumes: ["db-data:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-stage-demand}-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+volumes:
+  db-data:
+  redis-data:
+  artifacts:

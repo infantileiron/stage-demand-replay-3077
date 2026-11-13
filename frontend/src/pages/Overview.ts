@@ -1,0 +1,11 @@
+import {defineComponent,onMounted,computed} from 'vue'
+import {runs,loadRuns} from '../stores/run'
+import {datasets,loadDatasets} from '../stores/dataset'
+import {scenarios,loadScenarios} from '../stores/scenario'
+import {plans,loadPlans} from '../stores/plan'
+import {useTask} from '../hooks/useTask'
+import DemandChart from '../components/common/DemandChart'
+import RunStrip from '../components/common/RunStrip'
+import Notice from '../components/common/Notice'
+import EmptyState from '../components/common/EmptyState'
+export default defineComponent({components:{DemandChart,RunStrip,Notice,EmptyState},setup(){const state=useTask();onMounted(()=>state.task(async()=>{await Promise.all([loadRuns(),loadDatasets(),loadScenarios(),loadPlans()])}));const latest=computed(()=>runs.value.find(r=>r.status==='completed'));return {runs,datasets,scenarios,plans,latest,...state}},template:`<section><Notice :error="error"/><div class="hero"><div><p class="eyebrow">运营研究 / 第十一月</p><h1>在开场之前，<br><em>看见到场的节奏。</em></h1><p>从三座剧场的历史里，为下一周准备合适的人手。<br>每一次预演，都保留误差与边界。</p><a class="text-link" href="#scenarios">开始一个新的情景 →</a></div><aside class="margin-note"><span>REHEARSAL<br>NOTE / 11</span><strong>{{datasets.reduce((sum,d)=>sum+d.row_count,0)}}</strong><p>条历史观测<br>{{scenarios.length}} 份情景 · {{plans.length}} 份编排建议</p></aside></div><div class="section-line"><h2>最近一次预演</h2><span>时序验证 / 不打乱历史</span></div><template v-if="latest && latest.result"><RunStrip :run="latest"/><div class="result-heading"><h3>{{latest.result.venue}} · 接下来 {{latest.result.forecast.length}} 天</h3><a href="#results" class="text-link">查看完整回测 ↗</a></div><DemandChart :result="latest.result"/><div class="metric-row"><p><span>递归回测 MAE</span><strong>{{latest.result.mae}}<small>人</small></strong></p><p><span>上周同日基线 MAE</span><strong>{{latest.result.baseline_mae}}<small>人</small></strong></p><p><span>残差区间半径</span><strong>±{{latest.result.interval_radius}}<small>人</small></strong></p></div></template><EmptyState v-else title="还没有完成的预演" text="先在历史观测导入数据，再建立情景并提交计算。"/></section>`})

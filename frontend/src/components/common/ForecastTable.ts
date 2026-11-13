@@ -1,0 +1,2 @@
+import {defineComponent} from 'vue'
+export default defineComponent({props:{days:{type:Array,required:true}},template:`<div class="table-scroll"><table><thead><tr><th>日期</th><th>预演人数</th><th>90%区间</th><th>引导员建议</th></tr></thead><tbody><tr v-for="day in days" :key="day.date"><td>{{day.date}} <small v-if="day.event">特别场</small></td><td>{{day.prediction}} 人</td><td>{{day.lower}} — {{day.upper}}</td><td>{{day.ushers}} 名</td></tr></tbody></table></div>`})
