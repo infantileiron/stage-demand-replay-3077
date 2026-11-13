@@ -30,3 +30,26 @@ def process(ident):
         return update_row(Run.table,ident,{"status":RunStatus.COMPLETED.value,"result":result,"error":None})
     except Exception as exc:
         return update_row(Run.table,ident,{"status":RunStatus.FAILED.value,"error":str(exc)[:400]})
+
+def verify(ident, body):
+    """Read-only check of a completed run against an observation set; never mutates the run."""
+    run=get_row(Run.table,ident)
+    if run["status"]!=RunStatus.COMPLETED.value or not run.get("result"):
+        raise HTTPException(409,"仅已完成的计算可以核验实到记录")
+    dataset=get_row("datasets",body.dataset_id)
+    result=run["result"]
+    venue=result["venue"]
+    actuals={r["date"]:r["attendance"] for r in dataset["rows"] if r["venue"]==venue}
+    pairs,missing=[],[]
+    for day in result["forecast"]:
+        actual=actuals.get(day["date"])
+        if actual is None: missing.append(day["date"])
+        else: pairs.append({"date":day["date"],"prediction":day["prediction"],"lower":day["lower"],"upper":day["upper"],"actual":actual})
+    complete=not missing
+    for pair in pairs: pair["error"]=round(pair["actual"]-pair["prediction"],1) if complete else None
+    mae=coverage=None
+    if complete:
+        mae=round(sum(abs(p["error"]) for p in pairs)/len(pairs),2)
+        coverage=round(sum(1 for p in pairs if p["lower"]<=p["actual"]<=p["upper"])/len(pairs),3)
+    return {"run_id":run["id"],"dataset_id":dataset["id"],"dataset_name":dataset["name"],"venue":venue,
+        "pairs":pairs,"missing":missing,"complete":complete,"mae":mae,"coverage":coverage}

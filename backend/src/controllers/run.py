@@ -5,3 +5,5 @@ def listing(): return service.list_runs()
 def create(body): return service.create(body)
 
 def detail(ident): return get_row("runs",ident)
+
+def verify(ident, body): return service.verify(ident, body)

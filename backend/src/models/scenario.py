@@ -11,6 +11,7 @@ class Scenario:
     horizon: int
     weekend_event: bool
     people_per_usher: int
+    cutoff_date: str | None = None
 
     def payload(self):
         return asdict(self)

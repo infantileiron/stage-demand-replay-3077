@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from src.schemas.run import RunCreate
+from src.schemas.run import RunCreate, VerifyCreate
 from src.controllers import run as controller
 from src.utils.dependencies import current_user,writer,administrator
 router=APIRouter(prefix="/runs",tags=["runs"])
@@ -12,3 +12,6 @@ def create(body:RunCreate,user=Depends(writer)): return controller.create(body)
 
 @router.get("/{ident}")
 def detail(ident: int, user=Depends(current_user)): return controller.detail(ident)
+
+@router.post("/{ident}/verify")
+def verify(ident: int, body: VerifyCreate, user=Depends(current_user)): return controller.verify(ident, body)

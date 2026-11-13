@@ -1,3 +1,4 @@
+from datetime import date
 from pydantic import BaseModel, Field
 from typing import Literal
 
@@ -8,3 +9,4 @@ class ScenarioCreate(BaseModel):
     horizon: Literal[7, 14] = 7
     weekend_event: bool = False
     people_per_usher: int = Field(default=65, ge=20, le=150)
+    cutoff_date: date | None = None

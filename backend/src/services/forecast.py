@@ -43,8 +43,13 @@ def finite_quantile(errors, coverage=.90):
     return float(np.sort(np.asarray(errors))[rank-1])
 
 def analyze(rows, scenario):
+    cutoff = scenario.get("cutoff_date")
     data = sorted([r for r in rows if r["venue"] == scenario["venue"]], key=lambda r:r["date"])
-    if len(data) < 70: raise ValueError("所选厅至少需要70天连续历史")
+    if cutoff:
+        # Replay mode: tuning, backtest and interval calibration only see history up to the cutoff.
+        cutoff_day = date.fromisoformat(cutoff)
+        data = [r for r in data if date.fromisoformat(r["date"]) <= cutoff_day]
+    if len(data) < 70: raise ValueError("截至复盘截止日的历史不足70天，拒绝计算" if cutoff else "所选厅至少需要70天连续历史")
     dates = [date.fromisoformat(r["date"]) for r in data]
     if len(set(dates)) != len(dates): raise ValueError("历史含重复日期")
     if any(b-a != timedelta(days=1) for a,b in zip(dates, dates[1:])): raise ValueError("历史日期有缺口，请补齐后重新导入")
@@ -77,10 +82,12 @@ def analyze(rows, scenario):
     predictions=[{"date":row["date"],"event":row["event"],"prediction":round(value,1),
        "lower":round(max(0,value-radius),1),"upper":round(min(capacity,value+radius),1),
        "ushers":max(2,math.ceil(min(capacity,value+radius)/scenario["people_per_usher"]))} for row,value in zip(future,forecast)]
+    limitations=["模拟到场数据，不能替代运营判断", "区间来自最近14天递归残差，非独立同分布或漂移时不保证90%覆盖", "多步共用区间半径，远期不确定性可能低估"]
+    if cutoff: limitations.append(f"历史复盘模式：选参、回测与区间校准仅使用截至 {cutoff} 的观测，之后的记录未参与计算")
     return {"alpha":alpha,"folds":scores,"mae":round(float(np.mean(residual)),2),
        "baseline_mae":round(float(np.mean(np.abs(actual-baseline))),2),"interval_radius":round(radius,2),
-       "nominal_coverage":.90,"history_days":len(data),"venue":scenario["venue"],"capacity":capacity,
+       "nominal_coverage":.90,"history_days":len(data),"venue":scenario["venue"],"capacity":capacity,"cutoff_date":cutoff,
        "backtest":[{"date":row["date"],"actual":int(obs),"prediction":round(pred,1),"baseline":round(base,1)} for row,obs,pred,base in zip(heldout,actual,back,baseline)],
        "forecast":predictions,"history":[{"date":r["date"],"attendance":r["attendance"]} for r in data[-42:]],
        "split":{"tuning_last_date":data[calibration_start-1]["date"],"calibration_first_date":heldout[0]["date"],"training_last_date":data[-1]["date"]},
-       "limitations":["模拟到场数据，不能替代运营判断", "区间来自最近14天递归残差，非独立同分布或漂移时不保证90%覆盖", "多步共用区间半径，远期不确定性可能低估"]}
+       "limitations":limitations}
